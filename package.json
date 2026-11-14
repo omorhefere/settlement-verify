@@ -1,0 +1,30 @@
+{
+  "name": "settlement-verify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file=.env src/main.ts",
+    "extract": "tsx --env-file=.env src/cli/extract.ts",
+    "generate": "tsx src/cli/generate.ts",
+    "eval": "tsx --env-file=.env src/evals/run-evals.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "currency.js": "^2.0.4",
+    "luxon": "^3.7.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.6",
+    "@types/node": "^26.6.6",
+    "@types/pdfkit": "^0.17.7",
+    "pdfkit": "^0.20.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
