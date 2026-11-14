@@ -2,7 +2,7 @@
 
 Verifying loan settlement letters with LLMs, where the worst mistake is accepting a wrong figure.
 
-When someone consolidates their debts, the new lender pays off each old loan. The amount paid has to be exactly the settlement figure, or the old debt isn't closed. This project assumes a hypothetical lender that can estimate most figures from credit report data, and covers the case where the customer's figure differs from the estimate: they upload their settlement letter to prove the figure they entered.
+It verifies that the amount a customer entered matches the settlement figure on their settlement letter.
 
 The design rule throughout: **the model reads, code decides.** A model extracts what's printed on the letter; deterministic code compares it with what the customer entered and decides.
 
