@@ -10,7 +10,8 @@ export type LetterLayout =
   | "formal" // statutory-style settlement statement: agreement number, breakdown, valid-until date
   | "car_finance" // car finance: vehicle registration, valid-until date
   | "next_payment" // valid "until your next payment due date"
-  | "monthly_statement"; // NOT a settlement letter: a normal statement, for the near miss
+  | "monthly_statement" // NOT a settlement letter: a normal statement, for the near miss
+  | "table_statement"; // settlement quotation as a table, with a second, similar-looking amount next to the settlement figure
 
 // How the letter says how long its settlement figure is valid.
 export type FigureValidity =
@@ -35,6 +36,9 @@ export type LetterTruth = {
   settlementPence: number;
   // Optional breakdown printed on formal letters: balance + interest - rebate.
   breakdown?: { balancePence: number; interestPence: number; rebatePence: number };
+  // Printed on table statements next to the settlement figure: "total amount
+  // payable under the agreement". A different amount; easy to confuse with it.
+  agreementTotalPence?: number;
   validity: FigureValidity;
   accountNumber: string | null; // null: the letter prints no account number
   vehicleReg?: string;

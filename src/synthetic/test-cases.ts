@@ -29,6 +29,14 @@ const KESTREL: LetterCreditor = {
   address: ["Kestrel Court", "Manchester", "M1 1AA"],
   phone: "0300 000 0404",
 };
+// Printed name differs from the legal name on the credit report, as with
+// real partner-finance brands.
+const OSPREY: LetterCreditor = {
+  name: "Osprey Partner Finance",
+  legalName: "Osprey Financial Services Limited",
+  address: ["PO Box 900", "NEWPORT", "NP10 9ZZ"],
+  phone: "0300 000 0505",
+};
 
 // The known-creditor list the evals should use with these letters.
 export const SYNTHETIC_KNOWN_CREDITORS: KnownCreditor[] = [
@@ -36,6 +44,7 @@ export const SYNTHETIC_KNOWN_CREDITORS: KnownCreditor[] = [
   { name: "Harbour Credit", aliases: [] },
   { name: "Northwind Motor Finance", aliases: [] },
   { name: "Kestrel Loans", aliases: [] },
+  { name: "Osprey Partner Finance", aliases: ["Osprey Financial Services Limited"] },
 ];
 
 // A fictional customer with a placeholder address.
@@ -132,6 +141,23 @@ const nextPaymentCleanTestCase = cleanTestCase(
   "2026-11-12",
 );
 
+const tableStatementCleanTestCase = cleanTestCase(
+  "table-statement-clean",
+  "Table statement: agreement total printed just above the settlement figure, valid-until date",
+  {
+    layout: "table_statement",
+    creditor: OSPREY,
+    customer: fictionalCustomer("Robin Specimen"),
+    letterDate: "2026-11-14",
+    settlementPence: 73_215,
+    agreementTotalPence: 72_640, // a different, lower amount: the one a customer might type by mistake
+    validity: { kind: "date", date: "2026-12-12" },
+    accountNumber: "4001250891072204",
+  },
+  "4001250891072204",
+  "2026-11-22",
+);
+
 // ---------- Near misses ----------
 
 // The figure with the first pair of different adjacent digits swapped (after
@@ -195,6 +221,14 @@ export const TEST_CASES: TestCase[] = [
   nextPaymentCleanTestCase,
   nearMissOfTestCase(nextPaymentCleanTestCase, "next-payment-late", "Valid until next payment, uploaded the day after the letter", {
     today: "2026-11-13",
+  }, ["expiry"]),
+
+  tableStatementCleanTestCase,
+  nearMissOfTestCase(tableStatementCleanTestCase, "table-statement-agreement-total-entered", "Table statement, customer entered the agreement total, not the settlement figure", {
+    application: { ...tableStatementCleanTestCase.application, enteredPence: tableStatementCleanTestCase.truth.agreementTotalPence! },
+  }, ["amount"]),
+  nearMissOfTestCase(tableStatementCleanTestCase, "table-statement-expired", "Table statement, uploaded the day after the valid-until date", {
+    today: "2026-12-13",
   }, ["expiry"]),
 
   {

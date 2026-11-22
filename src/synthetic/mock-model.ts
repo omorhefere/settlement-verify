@@ -16,6 +16,7 @@ const DATE_FORMAT_BY_LAYOUT = {
   car_finance: formatIsoAsOrdinalDate,
   next_payment: formatIsoAsLongDate,
   monthly_statement: formatIsoAsNumericDate,
+  table_statement: formatIsoAsNumericDate,
 } as const;
 
 const perfectlyReadAmount = (category: Amount["category"], pence: number, label: string | null): Amount => ({
@@ -55,6 +56,9 @@ export const mockModelExtractionFromTruth = (truth: LetterTruth): LetterExtracti
     : [
         perfectlyReadAmount("settlement_figure", truth.settlementPence, "Settlement figure"),
         ...(truth.breakdown ? [perfectlyReadAmount("balance", truth.breakdown.balancePence, "Outstanding balance")] : []),
+        ...(truth.agreementTotalPence !== undefined
+          ? [perfectlyReadAmount("other", truth.agreementTotalPence, "Total amount payable under the agreement")]
+          : []),
       ];
 
   const dates: LetterDate[] = [perfectlyReadDate("letter_date", truth.letterDate, formatDate)];

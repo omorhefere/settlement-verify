@@ -111,7 +111,7 @@ An edited letter could inflate a figure to borrow more. Signals worth checking b
 
 ## Dev set and test set
 
-- **Dev set:** the 15 synthetic test cases in `letters/synthetic`. Run as often as needed, and tune against them.
+- **Dev set:** the 18 synthetic test cases in `letters/synthetic` (6 letter styles plus a non-letter). Run as often as needed, and tune against them. Run as often as needed, and tune against them.
 - **Test set:** real settlement letters, labelled by hand in `letters/private/test` (gitignored). Run rarely, and never tune against them: if a real letter's failure leads to a code change, that letter moves to the dev set and the next real letter takes its place. Results are reported separately from the dev set.
 
 ### Adding a real letter to the test set
@@ -132,7 +132,7 @@ Needs Node 25+ and pnpm. Add `ANTHROPIC_API_KEY=...` to a `.env` file (gitignore
 ```bash
 pnpm install
 pnpm test                 # unit tests (no API calls)
-pnpm generate             # write the 15 synthetic test cases to letters/synthetic/
+pnpm generate             # write the 18 synthetic test cases to letters/synthetic/
 pnpm eval mock            # dry run of the eval with the mock model (free)
 pnpm eval haiku           # one model
 pnpm eval haiku:sonnet    # cheap model first, strong model when needed

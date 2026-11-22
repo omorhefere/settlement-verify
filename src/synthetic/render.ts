@@ -145,12 +145,60 @@ const drawMonthlyStatementLayout = (doc: PdfDocument, truth: LetterTruth) => {
   drawLetterFooter(doc, truth);
 };
 
+// A settlement quotation laid out as a boxed table, with the agreement total
+// sitting right above the settlement figure. Reference details sit on the
+// right; the valid-until date appears twice (in the text and in the table).
+const drawTableStatementLayout = (doc: PdfDocument, truth: LetterTruth) => {
+  if (truth.validity.kind !== "date" || !truth.accountNumber || truth.agreementTotalPence === undefined) {
+    throw new Error("table_statement layout needs a valid-until date, an account number and an agreement total");
+  }
+  const validUntil = formatIsoAsNumericDate(truth.validity.date);
+  const pageLeft = doc.page.margins.left;
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+  drawLetterHeader(doc, truth);
+  doc.fontSize(10);
+  doc.text(`Date: ${formatIsoAsNumericDate(truth.letterDate)}`, { align: "right" });
+  doc.text("Reference: SETTLE-Q (v1.0)", { align: "right" });
+  doc.text(`Account Number: ${truth.accountNumber}`, { align: "right" }).moveDown();
+
+  doc.font("Helvetica-Bold").fontSize(13).text(`Your ${truth.creditor.name} Loan agreement`).font("Helvetica").fontSize(11).moveDown(0.5);
+  doc.text(`Dear ${truth.customer.name},`).moveDown(0.5);
+  doc.text(`Following a request for a settlement quotation on your ${truth.creditor.name} Loan agreement, please find the requested information below.`);
+  doc.moveDown(0.5).text(`If you'd like to settle your loan in full, you will need to pay us the below amount by ${validUntil}.`).moveDown(0.5);
+
+  // The table: three boxed rows.
+  const tableRows: [string, string][] = [
+    ["Total amount payable under the agreement", formatPenceAsPounds(truth.agreementTotalPence)],
+    ["Total amount payable to settle your loan in full", formatPenceAsPounds(truth.settlementPence)],
+    ["Settlement figure valid until", validUntil],
+  ];
+  const rowHeight = 22;
+  const labelColumnWidth = pageWidth * 0.55;
+  let rowTop = doc.y;
+  for (const [label, value] of tableRows) {
+    doc.rect(pageLeft, rowTop, labelColumnWidth, rowHeight).stroke();
+    doc.rect(pageLeft + labelColumnWidth, rowTop, pageWidth - labelColumnWidth, rowHeight).stroke();
+    doc.text(label, pageLeft + 6, rowTop + 6, { width: labelColumnWidth - 12 });
+    doc.text(value, pageLeft + labelColumnWidth + 6, rowTop + 6, { width: pageWidth - labelColumnWidth - 12 });
+    rowTop += rowHeight;
+  }
+  doc.x = pageLeft;
+  doc.y = rowTop + 12;
+
+  doc.text("If you're planning to pay this amount before this date, please don't cancel your Direct Debit until your account is fully paid.");
+  doc.moveDown(0.5).text(`If you don't pay in full by ${validUntil} but would like to settle later, please contact us for a new settlement figure.`);
+  doc.moveDown(0.5).text("As we calculate interest on a daily basis, you won't be entitled to a rebate if you settle your account early.");
+  drawLetterFooter(doc, truth);
+};
+
 const DRAW_FUNCTION_BY_LAYOUT = {
   app: drawAppLayout,
   formal: drawFormalLayout,
   car_finance: drawCarFinanceLayout,
   next_payment: drawNextPaymentLayout,
   monthly_statement: drawMonthlyStatementLayout,
+  table_statement: drawTableStatementLayout,
 };
 
 // Draws the letter described by a LetterTruth, in its layout, as a PDF.

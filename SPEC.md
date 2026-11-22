@@ -114,6 +114,8 @@ In production, also track: drop-out at the upload step, the share of uploads acc
 
 ### Dev set (synthetic)
 
+The dev set now has 18 test cases: a table-style statement (a second amount, "total amount payable under the agreement", printed next to the settlement figure) was added after the first test-set run, using that letter's layout with a fictional creditor and figures.
+
 The original 15 synthetic test cases (5 letter styles, each clean plus near misses):
 
 | Setup | Correct | Wrongly accepted | Escalated | Cost per test case |
@@ -137,7 +139,7 @@ Both models read every field correctly from the photo. Both rejections were cust
 ## Data
 
 Each source has one job:
-- **Synthetic UK letters (dev set):** to build and tune. Each is generated from a truth (the correct answers), so it comes labelled. Near misses are one-field edits: the balance entered instead of the settlement figure, swapped digits, expired, a different account or creditor, not a settlement letter.
+- **Synthetic UK letters (dev set):** 18 test cases across 6 letter styles plus a non-letter, to build and tune. Each is generated from a truth (the correct answers), so it comes labelled. Near misses are one-field edits: the balance entered instead of the settlement figure, swapped digits, expired, a different account or creditor, not a settlement letter.
 - **The author's own settlement letters (test set):** a small hand-labelled real set, held back to check results on real layouts. Gitignored, never committed.
 - **Planned:** scan-like copies of the synthetic letters (rotated, blurred, noisy), more creditor styles, and SEC EDGAR payoff letters (US, corporate) as an out-of-distribution test, where the pass condition is that none is accepted.
 - In production, shadow mode (decisions logged, not acted on) and payment results (did the debt close?) would become the main sources of labelled data.
