@@ -1,0 +1,27 @@
+{
+  "id": "letter-2-clean",
+  "description": "Real letter, right figure entered before expiry",
+  "letterFile": "letter-2.jpg",
+  "application": {
+    "enteredPence": 123456,
+    "loanAgreementNumber": "AB-123456"
+  },
+  "loan": {
+    "creditor": "EXAMPLE FINANCE LIMITED",
+    "accountNumber": "AB-123456",
+    "startDate": null
+  },
+  "today": "2026-11-22",
+  "expected": {
+    "accept": true,
+    "notPassing": []
+  },
+  "onLetter": {
+    "isSettlementLetter": true,
+    "settlementPence": 123456,
+    "letterDate": "2026-11-20",
+    "validity": { "kind": "date", "date": "2026-12-04" },
+    "accountNumber": "AB-123456",
+    "creditorNames": ["Example Finance", "Example Finance Limited"]
+  }
+}

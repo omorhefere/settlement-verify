@@ -1,9 +1,8 @@
 import type { TokenUsage } from "../extractors/anthropic.ts";
 import { costUsdOfTokenUsage } from "../pricing.ts";
 import type { CheckName } from "../types.ts";
-import type { LetterTruth } from "../synthetic/types.ts";
 import type { ModelReading, VerificationOutcome } from "../verify.ts";
-import { compareModelReadingWithLetterTruth, type FieldReadingCheck, type ReadingField } from "./reading-accuracy.ts";
+import { compareModelReadingWithLetterFacts, type FieldReadingCheck, type LetterFacts, type ReadingField } from "./reading-accuracy.ts";
 
 // Grading: comparing what the system did with what it should have done
 // (SPEC.md > Metrics). Pure functions: the runner makes the model calls and
@@ -82,7 +81,7 @@ export const checkVerificationOutcomeMatchesExpectedResult = (
 // the verifier's final decision against the test case's expected result, and
 // records each model reading, the tokens used, the cost and the time taken.
 export const evaluateOutcomeOfSettlementLetterVerification = (
-  labelledTestCase: { id: string; description: string; expected: ExpectedResult; truth?: LetterTruth },
+  labelledTestCase: { id: string; description: string; expected: ExpectedResult; letterFacts?: LetterFacts },
   verificationOutcome: VerificationOutcome,
   tokensUsedForLetterExtraction: TokenUsage[],
   secondsTaken: number,
@@ -97,9 +96,9 @@ export const evaluateOutcomeOfSettlementLetterVerification = (
     model: reading.model,
     verdict: reading.verdict.kind,
     notPassing: listChecksThatDidNotPass(reading),
-    // Testing the model alone: only possible when we know what's printed.
-    ...(labelledTestCase.truth
-      ? { fieldReadingChecks: compareModelReadingWithLetterTruth(reading.extraction, labelledTestCase.truth) }
+    // Testing the model alone: only possible when we know what's printed (the letter's facts).
+    ...(labelledTestCase.letterFacts
+      ? { fieldReadingChecks: compareModelReadingWithLetterFacts(reading.extraction, labelledTestCase.letterFacts) }
       : {}),
   })),
   usage: tokensUsedForLetterExtraction,

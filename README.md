@@ -8,7 +8,7 @@ The design rule throughout: **the model reads, code decides.** A model extracts 
 
 ## Results so far
 
-15 synthetic test cases (5 letter styles, each clean plus near misses), run end to end with real models:
+**Dev set:** the original 15 synthetic test cases (5 letter styles, each clean plus near misses), run end to end with real models:
 
 | Setup | Correct | Wrongly accepted | Escalated to strong model | Cost per test case |
 |---|---|---|---|---|
@@ -18,7 +18,9 @@ The design rule throughout: **the model reads, code decides.** A model extracts 
 
 Haiku read every field of every letter correctly. Escalating every rejection cost 12× for no gain, because rejections were the customer's mistakes (wrong figure typed, expired letter), not misreads. So escalation should trigger on *uncertainty*, not on *rejection*.
 
-Caveat: these letters are clean, computer-generated PDFs. Scan-like copies and real letters are next.
+Caveat: these letters are clean, computer-generated PDFs, so this is a ceiling.
+
+**Test set:** the first real letter, a lender's settlement letter uploaded as a phone photo and labelled by hand before running. Three test cases (the right figure; the customer typed the letter's *other* amount; uploaded the day after expiry): **3/3 correct, 0 wrongly accepted**, every field read correctly from the photo, about $0.015 per test case with the Haiku → Sonnet flow. Both rejections were customer errors and were escalated anyway, the same pattern as above. It's one letter, so it's a real result but a small one.
 
 ## How it works
 
@@ -35,7 +37,7 @@ strong model reads the same PDF from scratch ──► code checks ──► all
 back to the customer with a reason they can act on (5 tries, then the application ends)
 ```
 
-- **The model never sees the customer's figure**, only the PDF, so it can't be nudged into agreeing.
+- **The model never sees the customer's figure**, only the letter (a PDF or a photo), so it can't be nudged into agreeing.
 - **Every amount and date is read twice.** The model copies the printed text (`"£3,987.20"`) and gives its own conversion (`398720` pence). Code parses the printed text itself and compares. If they disagree, the result is unsure, never a guess. This catches a dropped digit or a day/month swap.
 - **Checks are pure functions** returning pass, fail or unsure with a reason: is it a settlement letter, known creditor, amount (exact), the letter is for this loan (account number, then creditor), and expiry (a printed date, or a period like "valid for three working days", counted with UK bank holidays).
 - **Never allowed:** an automatic accept on an expired figure, an unknown creditor, or a document that isn't a settlement letter.
@@ -107,6 +109,22 @@ An edited letter could inflate a figure to borrow more. Signals worth checking b
 - Evals in CI on every prompt or model change; model versions pinned and rolled out gradually.
 - Monitoring for new letter layouts and a rising unsure rate, plus a random audit of accepted letters, because a wrongly accepted letter is otherwise invisible until the debt still shows a balance after payoff.
 
+## Dev set and test set
+
+- **Dev set:** the 15 synthetic test cases in `letters/synthetic`. Run as often as needed, and tune against them.
+- **Test set:** real settlement letters, labelled by hand in `letters/private/test` (gitignored). Run rarely, and never tune against them: if a real letter's failure leads to a code change, that letter moves to the dev set and the next real letter takes its place. Results are reported separately from the dev set.
+
+### Adding a real letter to the test set
+
+1. Put the letter (PDF or photo) in `letters/private/test/`, e.g. `letter-2.jpg`.
+2. **Before running anything**, write the label files by hand, starting from [letters/TEMPLATE.json](letters/TEMPLATE.json):
+   - `onLetter`: what's printed on the letter (settlement figure in pence, letter date, how long it's valid, the account number or `null`, the creditor's names). Fields not on the letter are `null`.
+   - `application`, `loan`, `today`: the situation to test.
+   - `expected`: accept, or reject and which checks should catch it.
+3. Make several test cases from one letter by changing the situation, not the letter: the right figure (accept), a different figure (reject, `amount`), "today" after it expires (reject, `expiry`), a different loan (reject, `account`). Each is its own label file pointing at the same `letterFile`.
+4. Add the letter's creditor to `letters/private/test/known-creditors.json` (see [letters/known-creditors.TEMPLATE.json](letters/known-creditors.TEMPLATE.json)).
+5. Run: `pnpm eval haiku --dataset letters/private/test`. The output includes what the model read, which is personal data: don't paste it anywhere public.
+
 ## Running it
 
 Needs Node 25+ and pnpm. Add `ANTHROPIC_API_KEY=...` to a `.env` file (gitignored).
@@ -119,7 +137,8 @@ pnpm eval mock            # dry run of the eval with the mock model (free)
 pnpm eval haiku           # one model
 pnpm eval haiku:sonnet    # cheap model first, strong model when needed
 pnpm eval haiku:sonnet --unsure-only
-pnpm extract path/to/letter.pdf [model-id]   # see what a model reads from one letter
+pnpm eval haiku --dataset letters/private/test   # the test set of real letters (run rarely)
+pnpm extract path/to/letter.pdf [model-id]   # see what a model reads from one letter (PDF or photo)
 ```
 
 ## Project layout

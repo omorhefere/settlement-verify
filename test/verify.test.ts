@@ -52,7 +52,7 @@ const buildVerifierWithFakeModels = (
 
 // The clean application's upload, on the given attempt.
 const uploadOnAttempt = (attemptNumber = 1): UploadedLetterInput => ({
-  letterPdf: Buffer.from("%PDF fake"),
+  letterFile: Buffer.from("%PDF fake"),
   application: cleanApplication(),
   loan: cleanLoan(),
   attemptNumber,
@@ -134,7 +134,7 @@ describe("settlement letter verifier", () => {
   it("only ever gives the model the PDF, never the entered figure", async () => {
     const cheapModel = fakeModelReturning(cleanLetterExtraction());
     await buildVerifierWithFakeModels(cheapModel, fakeModelReturning(cleanLetterExtraction()))(uploadOnAttempt());
-    expect(cheapModel).toHaveBeenCalledWith(uploadOnAttempt().letterPdf);
+    expect(cheapModel).toHaveBeenCalledWith(uploadOnAttempt().letterFile);
   });
 });
 

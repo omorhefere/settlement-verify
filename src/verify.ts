@@ -8,13 +8,13 @@ import type { Application, CheckResult, Loan } from "./types.ts";
 // The verification flow (SPEC.md > Outcomes). The models only read; code
 // decides.
 //
-//   cheap model reads the PDF → checks → all pass? accept
-//   otherwise → strong model reads the same PDF from scratch → checks → all pass? accept
+//   cheap model reads the letter → checks → all pass? accept
+//   otherwise → strong model reads the same letter from scratch → checks → all pass? accept
 //   otherwise → back to the customer with reasons (upload n of maxUploadAttempts)
 //   after the last attempt → the application ends
 //
 // What triggers the strong read: any check on the cheap reading that didn't
-// pass (unsure or fail). The strong model gets only the PDF: not the cheap
+// pass (unsure or fail). The strong model gets only the letter: not the cheap
 // model's reading and not the figure the customer entered, so its reading is
 // independent. Checks then run on the strong reading alone.
 //
@@ -48,7 +48,7 @@ export type SettlementLetterVerifierConfig = {
 
 // One upload: the letter and everything we already know about the application.
 export type UploadedLetterInput = {
-  letterPdf: Buffer;
+  letterFile: Buffer; // the uploaded letter: a PDF or a photo (JPEG, PNG, GIF or WebP)
   application: Application; // what the customer entered
   loan: Loan; // the loan being settled, from the credit report
   attemptNumber: number; // 1 for the first upload
@@ -82,14 +82,14 @@ export type SettlementLetterVerifier = (upload: UploadedLetterInput) => Promise<
 export const createSettlementLetterVerifier =
   (verifierConfig: SettlementLetterVerifierConfig): SettlementLetterVerifier =>
   async (upload) => {
-    // Asks one model to read the PDF, then runs every check on what it read.
+    // Asks one model to read the letter, then runs every check on what it read.
     // Returns an Error only when the model call itself failed.
     const readLetterWithModel = async (model: ModelReading["model"]): Promise<ModelReading | Error> => {
       const extractor = model === "cheap" ? verifierConfig.cheapModel : verifierConfig.strongModel;
       // Only the model call is caught: that's the service. A bug in our own
       // code (e.g. judgeCheckResults finding a missing check) must crash, not be retried
       // as if the service were down.
-      const extraction = await extractor(upload.letterPdf).catch((error: unknown) =>
+      const extraction = await extractor(upload.letterFile).catch((error: unknown) =>
         error instanceof Error ? error : new Error(String(error)),
       );
       if (extraction instanceof Error) return extraction;

@@ -6,6 +6,7 @@ import {
   checkVerificationOutcomeMatchesExpectedResult,
 } from "../src/evals/score.ts";
 import { mockModelExtractionFromTruth } from "../src/synthetic/mock-model.ts";
+import { letterFactsFromTruth } from "../src/evals/reading-accuracy.ts";
 import type { Verdict } from "../src/outcome.ts";
 import { TEST_CASES } from "../src/synthetic/test-cases.ts";
 import type { TestCase } from "../src/synthetic/types.ts";
@@ -118,7 +119,8 @@ describe("buildReadingAccuracyFromVerificationEvaluations", () => {
     // Cheap model misread the figure; strong model read it right.
     const cheapReading = { ...fakeReading("cheap", ["amount"]), extraction: misreadFigure };
     const strongReading = { ...fakeReading("strong", []), extraction: perfectReading };
-    const evaluation = evaluateOutcomeOfSettlementLetterVerification(formalTestCase, acceptedOutcome(cheapReading, strongReading), tokenUsage, 1);
+    const formalWithFacts = { ...formalTestCase, letterFacts: letterFactsFromTruth(formalTestCase.truth) };
+    const evaluation = evaluateOutcomeOfSettlementLetterVerification(formalWithFacts, acceptedOutcome(cheapReading, strongReading), tokenUsage, 1);
 
     const readingAccuracy = buildReadingAccuracyFromVerificationEvaluations([evaluation]);
     expect(readingAccuracy).toContainEqual({ model: "cheap", field: "settlement_figure", right: 0, total: 1 });

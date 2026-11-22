@@ -40,3 +40,23 @@ describe("makeAnthropicExtractor", () => {
     await expect(makeAnthropicExtractor({ client, model: "m" })(fakeLetterPdf)).rejects.toThrow(message);
   });
 });
+
+describe("makeAnthropicExtractor with photos", () => {
+  // The first bytes of a PNG file, then filler: enough for the type check.
+  const fakeLetterPhoto = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("fake png")]);
+
+  it("sends a photo as a base64 image block", async () => {
+    const { client, fakeParse } = fakeClientReturning({ stop_reason: "end_turn", parsed_output: cleanLetterExtraction() });
+    await makeAnthropicExtractor({ client, model: "m" })(fakeLetterPhoto);
+    expect(fakeParse.mock.calls[0]![0].messages[0].content[0]).toEqual({
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: fakeLetterPhoto.toString("base64") },
+    });
+  });
+
+  it("refuses a file type the model can't read, without calling the model", async () => {
+    const { client, fakeParse } = fakeClientReturning({ stop_reason: "end_turn", parsed_output: cleanLetterExtraction() });
+    await expect(makeAnthropicExtractor({ client, model: "m" })(Buffer.from("not a letter"))).rejects.toThrow(/Unsupported letter file/);
+    expect(fakeParse).not.toHaveBeenCalled();
+  });
+});

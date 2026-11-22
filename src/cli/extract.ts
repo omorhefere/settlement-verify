@@ -1,4 +1,4 @@
-// pnpm extract <letter.pdf> [model]
+// pnpm extract <letter file> [model]   (a PDF or a photo: JPEG, PNG, GIF, WebP)
 //
 // Sends one letter to a model and prints what it read, next to code's own
 // reading of each printed amount and date. For trying real letters by hand.
@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { readFile } from "node:fs/promises";
 import { formatPenceAsPounds } from "../checks.ts";
 import { makeAnthropicExtractor, type TokenUsage } from "../extractors/anthropic.ts";
+import { checkLetterFile } from "../extractors/letter-file.ts";
 import {
   crossCheckAmountWithModelReading,
   crossCheckDateWithModelReading,
@@ -17,9 +18,9 @@ import {
 } from "../parse.ts";
 import { costUsdOfTokenUsage } from "../pricing.ts";
 
-const [pdfPath, modelId = "claude-haiku-5-5"] = process.argv.slice(2);
-if (!pdfPath) {
-  console.error("Usage: pnpm extract <letter.pdf> [model]");
+const [letterPath, modelId = "claude-haiku-5-5"] = process.argv.slice(2);
+if (!letterPath) {
+  console.error("Usage: pnpm extract <letter file: PDF, JPEG, PNG, GIF or WebP> [model]");
   process.exit(1);
 }
 if (!process.env.ANTHROPIC_API_KEY) {
@@ -41,8 +42,16 @@ const extractLetter = makeAnthropicExtractor({
   onUsage: (callUsage) => (tokenUsage = callUsage),
 });
 
+const letterFile = await readFile(letterPath);
+const fileCheck = checkLetterFile(letterFile);
+if (!fileCheck.isSupported) {
+  console.error(fileCheck.reason);
+  process.exit(1);
+}
+console.log(`Reading ${fileCheck.mediaType} with ${modelId}…`);
+
 const startedAt = Date.now();
-const extraction = await extractLetter(await readFile(pdfPath));
+const extraction = await extractLetter(letterFile);
 const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
 
 console.log(`\nSettlement letter? ${extraction.is_settlement_letter}`);

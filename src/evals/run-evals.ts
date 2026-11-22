@@ -1,12 +1,15 @@
-// pnpm eval [setup] [--unsure-only]
+// pnpm eval [setup] [--unsure-only] [--dataset <folder>]
 //
-// Runs every test case in the synthetic dev set through the real verifier with
-// real models and reports two levels of testing (SPEC.md > Metrics):
+// Runs every test case in a dataset through the real verifier with real
+// models and reports two levels of testing (SPEC.md > Metrics):
 //   the model alone: what each model read vs what's printed on the letter, per field
 //   the system: the verifier's decision vs each test case's expected result
 // (The code alone is tested by `pnpm test`, with a mock model.) Saves the full
-// results to evals/results/ (gitignored). Run `pnpm generate` first:
-// this reads the PDFs and labels it wrote to letters/synthetic/.
+// results to evals/results/ (gitignored).
+//
+// Datasets:
+//   letters/synthetic (default)   the dev set; run `pnpm generate` first
+//   --dataset letters/private/test  real letters labelled by hand (the test set; run rarely)
 //
 // Setups:
 //   haiku | sonnet | opus      one model, no second reading
@@ -16,14 +19,14 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { ENGLAND_AND_WALES_BANK_HOLIDAYS } from "../bank-holidays.ts";
 import { makeAnthropicExtractor, type TokenUsage } from "../extractors/anthropic.ts";
 import type { LetterExtractor } from "../extractors/types.ts";
 import { mockModelExtractionFromTruth } from "../synthetic/mock-model.ts";
 import { SYNTHETIC_KNOWN_CREDITORS } from "../synthetic/test-cases.ts";
 import { createSettlementLetterVerifier } from "../verify.ts";
-import { loadLabelledTestCasesFromFolder, type LabelledTestCase } from "./dataset.ts";
+import { loadKnownCreditorsFromFolder, loadLabelledTestCasesFromFolder, type LabelledTestCase } from "./dataset.ts";
 import {
   buildReadingAccuracyFromVerificationEvaluations,
   buildScorecardFromVerificationEvaluations,
@@ -31,7 +34,7 @@ import {
   type SettlementLetterVerificationEvaluation,
 } from "./score.ts";
 
-const DATASET_FOLDER = "letters/synthetic";
+const DEFAULT_DATASET_FOLDER = "letters/synthetic";
 const RESULTS_FOLDER = "evals/results";
 const TEST_CASES_IN_FLIGHT = 4; // how many test cases run at once; keeps well under API rate limits
 
@@ -45,12 +48,23 @@ const MODEL_IDS: Record<string, string> = {
 // ---------- Read the command line ----------
 
 const commandLineArguments = process.argv.slice(2);
-const setupName = commandLineArguments.find((argument) => !argument.startsWith("--")) ?? "haiku:sonnet";
+// --dataset <folder>: the folder name is the argument after the flag.
+const datasetFlagPosition = commandLineArguments.indexOf("--dataset");
+const datasetFolder = datasetFlagPosition >= 0 ? commandLineArguments[datasetFlagPosition + 1] : DEFAULT_DATASET_FOLDER;
+if (!datasetFolder) {
+  console.error("--dataset needs a folder, e.g. --dataset letters/private/test");
+  process.exit(1);
+}
+// The setup is the first argument that isn't a flag or the --dataset folder.
+const isDatasetFolderArgument = (position: number) => datasetFlagPosition >= 0 && position === datasetFlagPosition + 1;
+const setupName =
+  commandLineArguments.find((argument, position) => !argument.startsWith("--") && !isDatasetFolderArgument(position)) ?? "haiku:sonnet";
 const shouldEscalateUnsureOnly = commandLineArguments.includes("--unsure-only");
 // "haiku:sonnet" → cheap "haiku", strong "sonnet". "haiku" → no strong model.
 const [cheapModelName, strongModelName] = setupName.split(":") as [string, string | undefined];
 const isMock = cheapModelName === "mock";
-const runLabel = `${setupName}${shouldEscalateUnsureOnly ? " --unsure-only" : ""}`;
+const datasetLabel = datasetFolder === DEFAULT_DATASET_FOLDER ? "" : ` on ${basename(datasetFolder)}`;
+const runLabel = `${setupName}${shouldEscalateUnsureOnly ? " --unsure-only" : ""}${datasetLabel}`;
 
 for (const modelName of [cheapModelName, strongModelName]) {
   if (modelName !== undefined && modelName !== "mock" && !MODEL_IDS[modelName]) {
@@ -90,13 +104,13 @@ const runAndEvaluateOneTestCase = async (testCase: LabelledTestCase): Promise<Se
     cheapModel: makeExtractorForTestCase(cheapModelName, testCase, tokensUsedForLetterExtraction),
     strongModel: makeExtractorForTestCase(strongModelName ?? cheapModelName, testCase, tokensUsedForLetterExtraction),
     escalationRule: strongModelName === undefined ? "never" : shouldEscalateUnsureOnly ? "unsure_only" : "any_non_accept",
-    knownCreditors: SYNTHETIC_KNOWN_CREDITORS,
+    knownCreditors,
     maxUploadAttempts: 5,
     getToday: () => testCase.today,
     bankHolidays: ENGLAND_AND_WALES_BANK_HOLIDAYS,
   });
   const startedAt = Date.now();
-  const verificationOutcome = await verifySettlementLetter({ letterPdf: testCase.pdf, application: testCase.application, loan: testCase.loan, attemptNumber: 1 });
+  const verificationOutcome = await verifySettlementLetter({ letterFile: testCase.letterFile, application: testCase.application, loan: testCase.loan, attemptNumber: 1 });
   return evaluateOutcomeOfSettlementLetterVerification(testCase, verificationOutcome, tokensUsedForLetterExtraction, (Date.now() - startedAt) / 1000);
 };
 
@@ -145,10 +159,21 @@ const runAndEvaluateAllTestCases = async (testCases: LabelledTestCase[]): Promis
   return verificationEvaluations;
 };
 
-const testCases = await loadLabelledTestCasesFromFolder(DATASET_FOLDER).catch(() => {
-  console.error(`Couldn't read ${DATASET_FOLDER}/. Run \`pnpm generate\` first.`);
-  process.exit(1);
-});
+const loadDatasetOrExit = async <T>(loading: Promise<T>): Promise<T> =>
+  loading.catch((error: unknown) => {
+    const isMissingFolder = error instanceof Error && "code" in error && error.code === "ENOENT" && error.message.includes("scandir");
+    console.error(
+      isMissingFolder
+        ? `Couldn't read ${datasetFolder}/.${datasetFolder === DEFAULT_DATASET_FOLDER ? " Run `pnpm generate` first." : ""}`
+        : `Problem in ${datasetFolder}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  });
+
+const testCases = await loadDatasetOrExit(loadLabelledTestCasesFromFolder(datasetFolder));
+// The creditors the checks accept: the dataset's own known-creditors.json, or
+// the synthetic creditors for the dev set.
+const knownCreditors = (await loadDatasetOrExit(loadKnownCreditorsFromFolder(datasetFolder))) ?? SYNTHETIC_KNOWN_CREDITORS;
 
 console.log(`\nRunning ${testCases.length} test cases with ${runLabel}\n`);
 const verificationEvaluations = await runAndEvaluateAllTestCases(testCases);
@@ -203,6 +228,6 @@ for (const verificationEvaluation of verificationEvaluations.filter((verificatio
 
 await mkdir(RESULTS_FOLDER, { recursive: true });
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-const resultsFile = join(RESULTS_FOLDER, `${timestamp}_${runLabel.replace(/[: ]+/g, "_")}.json`);
+const resultsFile = join(RESULTS_FOLDER, `${timestamp}_${runLabel.replace(/[: /]+/g, "_")}.json`);
 await writeFile(resultsFile, JSON.stringify({ setup: runLabel, ranAt: new Date().toISOString(), scorecard, readingAccuracy, verificationEvaluations }, null, 2) + "\n");
 console.log(`\nSaved to ${resultsFile}`);

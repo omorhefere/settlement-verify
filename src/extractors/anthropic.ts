@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { LetterExtraction } from "../extraction.ts";
+import { checkLetterFile } from "./letter-file.ts";
 import { EXTRACTION_SYSTEM_PROMPT } from "./prompt.ts";
 import type { LetterExtractor } from "./types.ts";
 
@@ -16,12 +17,24 @@ export type AnthropicExtractorOptions = {
 // The tokens one model call used, for working out its cost.
 export type TokenUsage = { model: string; inputTokens: number; outputTokens: number };
 
-// Builds a LetterExtractor that sends the letter PDF to a Claude model and
-// returns the model's reading, checked against the LetterExtraction schema.
-// Throws on truncated, refused or off-schema output.
+// The letter as a content block: a document block for a PDF, an image block
+// for a photo. Throws on a file type the model can't read; the upload step
+// should have rejected it already (checkLetterFile gives the customer message).
+const letterContentBlock = (letterFile: Buffer): Anthropic.ContentBlockParam => {
+  const fileCheck = checkLetterFile(letterFile);
+  if (!fileCheck.isSupported) throw new Error(`Unsupported letter file: ${fileCheck.reason}`);
+  const data = letterFile.toString("base64");
+  return fileCheck.mediaType === "application/pdf"
+    ? { type: "document", source: { type: "base64", media_type: "application/pdf", data } }
+    : { type: "image", source: { type: "base64", media_type: fileCheck.mediaType, data } };
+};
+
+// Builds a LetterExtractor that sends the letter (a PDF or a photo) to a
+// Claude model and returns the model's reading, checked against the
+// LetterExtraction schema. Throws on truncated, refused or off-schema output.
 export const makeAnthropicExtractor =
   ({ client, model, maxTokens = 4096, onUsage }: AnthropicExtractorOptions): LetterExtractor =>
-  async (letterPdf) => {
+  async (letterFile) => {
     const response = await client.messages.parse({
       model,
       max_tokens: maxTokens,
@@ -29,13 +42,7 @@ export const makeAnthropicExtractor =
       messages: [
         {
           role: "user",
-          content: [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: letterPdf.toString("base64") },
-            },
-            { type: "text", text: "Extract the fields from this document." },
-          ],
+          content: [letterContentBlock(letterFile), { type: "text", text: "Extract the fields from this document." }],
         },
       ],
       output_config: { format: zodOutputFormat(LetterExtraction) },

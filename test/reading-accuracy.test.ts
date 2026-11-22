@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareModelReadingWithLetterTruth, type ReadingField } from "../src/evals/reading-accuracy.ts";
+import { compareModelReadingWithLetterFacts, letterFactsFromTruth, type LetterFacts, type ReadingField } from "../src/evals/reading-accuracy.ts";
 import type { LetterExtraction } from "../src/extraction.ts";
 import { mockModelExtractionFromTruth } from "../src/synthetic/mock-model.ts";
 import { TEST_CASES } from "../src/synthetic/test-cases.ts";
@@ -9,18 +9,18 @@ const truthOf = (id: string): LetterTruth => TEST_CASES.find((testCase) => testC
 
 // The fields a reading got wrong.
 const wrongFields = (extraction: LetterExtraction, truth: LetterTruth): ReadingField[] =>
-  compareModelReadingWithLetterTruth(extraction, truth)
+  compareModelReadingWithLetterFacts(extraction, letterFactsFromTruth(truth))
     .filter((fieldCheck) => !fieldCheck.isRight)
     .map((fieldCheck) => fieldCheck.field);
 
-describe("compareModelReadingWithLetterTruth", () => {
+describe("compareModelReadingWithLetterFacts", () => {
   // The mock model reads perfectly, so every field of every letter is right.
   it.each(TEST_CASES.map((testCase) => [testCase.id, testCase.truth] as const))("%s: a perfect reading gets every field right", (_, truth) => {
     expect(wrongFields(mockModelExtractionFromTruth(truth), truth)).toEqual([]);
   });
 
   it("scores the fields each letter has", () => {
-    const fields = (id: string) => compareModelReadingWithLetterTruth(mockModelExtractionFromTruth(truthOf(id)), truthOf(id)).map((fieldCheck) => fieldCheck.field);
+    const fields = (id: string) => compareModelReadingWithLetterFacts(mockModelExtractionFromTruth(truthOf(id)), letterFactsFromTruth(truthOf(id))).map((fieldCheck) => fieldCheck.field);
     expect(fields("formal-clean")).toEqual(["settlement_letter", "settlement_figure", "letter_date", "expiry", "account_number", "creditor"]);
     // A monthly statement has no letter date or expiry to score.
     expect(fields("monthly-statement")).toEqual(["settlement_letter", "settlement_figure", "account_number", "creditor"]);
@@ -76,5 +76,33 @@ describe("compareModelReadingWithLetterTruth", () => {
     const truth = truthOf("monthly-statement");
     const misread = { ...mockModelExtractionFromTruth(truth), is_settlement_letter: "yes" as const };
     expect(wrongFields(misread, truth)).toEqual(["settlement_letter"]);
+  });
+});
+
+describe("compareModelReadingWithLetterFacts with hand-written facts (real letters)", () => {
+  // Facts written by hand for an app-style letter: no account number, valid
+  // for three working days, known by two names.
+  const handWrittenFacts: LetterFacts = {
+    isSettlementLetter: true,
+    settlementPence: 125000,
+    letterDate: "2026-11-11",
+    validity: { kind: "period", count: 3, unit: "working_days" },
+    accountNumber: null,
+    creditorNames: ["Brightloan", "Brightloan Platform Limited"],
+  };
+  const perfectReading = () => mockModelExtractionFromTruth(truthOf("app-clean"));
+
+  it("scores a perfect reading as all right", () => {
+    expect(compareModelReadingWithLetterFacts(perfectReading(), handWrittenFacts).every((fieldCheck) => fieldCheck.isRight)).toBe(true);
+  });
+
+  it("skips fields set to null", () => {
+    const fields = compareModelReadingWithLetterFacts(perfectReading(), { ...handWrittenFacts, letterDate: null, validity: null });
+    expect(fields.map((fieldCheck) => fieldCheck.field)).toEqual(["settlement_letter", "settlement_figure", "account_number", "creditor"]);
+  });
+
+  it("marks a wrong settlement figure", () => {
+    const wrong = compareModelReadingWithLetterFacts(perfectReading(), { ...handWrittenFacts, settlementPence: 125100 });
+    expect(wrong.filter((fieldCheck) => !fieldCheck.isRight).map((fieldCheck) => fieldCheck.field)).toEqual(["settlement_figure"]);
   });
 });

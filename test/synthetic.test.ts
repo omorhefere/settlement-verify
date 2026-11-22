@@ -33,7 +33,7 @@ describe("synthetic test cases", () => {
   });
 
   it("render as PDFs", async () => {
-    const letterPdf = await renderLetterTruthAsPdf(TEST_CASES[0]!.truth, "test");
-    expect(letterPdf.subarray(0, 5).toString()).toBe("%PDF-");
+    const letterFile = await renderLetterTruthAsPdf(TEST_CASES[0]!.truth, "test");
+    expect(letterFile.subarray(0, 5).toString()).toBe("%PDF-");
   });
 });

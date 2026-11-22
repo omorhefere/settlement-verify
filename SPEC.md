@@ -1,4 +1,4 @@
-# Settlement letter verification: spec v0.11
+# Settlement letter verification: spec v0.12
 
 ## Goal
 
@@ -21,7 +21,7 @@ Verify that the settlement figure a customer entered matches the settlement figu
 ## Flow
 
 1. The customer enters a settlement figure and the loan agreement number.
-2. The customer uploads the settlement letter.
+2. The customer uploads the settlement letter: a PDF or a photo (JPEG, PNG, GIF or WebP, up to 5 MB). The file type is detected from its contents, not its name; anything else (e.g. iPhone HEIC) is refused with a message saying what to upload.
 3. A cheap model reads the letter and returns structured fields.
 4. Code picks the settlement figure and runs the checks.
 5. Accept, or send back to the customer with a reason so they can retry (see [Outcomes](#outcomes)).
@@ -112,7 +112,9 @@ In production, also track: drop-out at the upload step, the share of uploads acc
 
 ## Results so far
 
-15 synthetic test cases (5 letter styles, each clean plus near misses):
+### Dev set (synthetic)
+
+The original 15 synthetic test cases (5 letter styles, each clean plus near misses):
 
 | Setup | Correct | Wrongly accepted | Escalated | Cost per test case |
 |---|---|---|---|---|
@@ -121,6 +123,16 @@ In production, also track: drop-out at the upload step, the share of uploads acc
 | Haiku → Sonnet 5.5 only when unsure | 15/15 | 0 | 1 | $0.00201 |
 
 Haiku read every field of every letter correctly. The letters are clean, computer-generated PDFs, so this is a ceiling, not a real-world result.
+
+### Test set (real letters)
+
+First run, 22 Nov 2026: one real lender's settlement letter, uploaded as a phone photo, labelled by hand before running, three test cases (the right figure; the customer entered the letter's other amount, "total amount payable under the agreement"; uploaded the day after expiry).
+
+| Setup | Correct | Wrongly accepted | Escalated | Cost per test case |
+|---|---|---|---|---|
+| Haiku → Sonnet 5.5 on any non-accept | 3/3 | 0 | 2 | $0.0147 |
+
+Both models read every field correctly from the photo. Both rejections were customer errors and were still escalated, the same pattern as the dev set. One letter is a small sample: report it as 3/3 on one real letter, not as a rate. After this run the letter's layout was used as a template for synthetic letters, so it now counts as dev data; the next real letter is the test set.
 
 ## Data
 
